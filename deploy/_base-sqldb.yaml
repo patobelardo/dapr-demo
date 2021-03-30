@@ -7,7 +7,7 @@ spec:
   version: v1
   metadata:
   - name: connectionString
-    value: Server=daprdemoserver.database.windows.net;Initial Catalog=daprdemodb;Persist Security Info=False;User ID=pbelardo;Password=Margarita2016!;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;
+    value: <connstring>
   - name: tableName
     value: state
 ---
