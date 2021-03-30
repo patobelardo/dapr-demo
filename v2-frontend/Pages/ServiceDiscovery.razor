@@ -1,0 +1,83 @@
+﻿@page "/servicediscovery"
+
+@using System.Text.Json
+@using v2_frontend.Data
+@using v2_frontend.Models
+@inject IHttpClientFactory clientFactory
+@inject DaprClient _daprClient;
+
+<h1>Service Discovery</h1>
+
+<p>This component demonstrates how to call a service (webapiapp) using Dapr SDK.</p>
+
+@if (customer1 == null)
+{
+    <p><em>Loading...</em></p>
+}
+else 
+{
+    <p>Customer 1: @customer1.Name</p>
+    <p>Customer 2: @customer2.Name</p>
+    <p>Customer 3: @customer3.Name</p>
+}
+
+<EditForm Model="@formModel" OnValidSubmit="@HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <InputText id="id" @bind-Value="formModel.Id" />
+    <InputText id="name" @bind-Value="formModel.Name" />
+
+    <button type="submit">Submit</button>
+</EditForm>
+
+@code {
+    private Customer formModel = new Customer();
+    private Customer customer1 = null;
+    private Customer customer2 = null;
+    private Customer customer3 = null;
+
+    private async Task HandleValidSubmit()
+    {
+
+
+        await _daprClient.InvokeMethodAsync<Customer>("webapiapp", "sample/create", formModel);
+            
+        await _refreshItems();
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await _refreshItems();
+    }
+
+    private async Task _refreshItems()
+    {
+        try{
+            customer1 = await _daprClient.InvokeMethodAsync<Customer>(HttpMethod.Get, "webapiapp", "sample/1");
+        }
+        catch(Dapr.Client.InvocationException ex)
+        {
+            Console.WriteLine(ex);
+            customer1 = new Customer{ Id = "1", Name = "Not Found"};
+        }
+        try{
+            customer2 = await _daprClient.InvokeMethodAsync<Customer>(HttpMethod.Get, "webapiapp", "sample/2");
+        }
+        catch(Dapr.Client.InvocationException ex)
+        {
+            Console.WriteLine(ex);
+            customer2 = new Customer{ Id = "2", Name = "Not Found"};
+        }
+        try{
+            customer3 = await _daprClient.InvokeMethodAsync<Customer>(HttpMethod.Get, "webapiapp", "sample/3");
+        }
+        catch(Dapr.Client.InvocationException ex)
+        {
+            Console.WriteLine(ex);
+            customer3 = new Customer{ Id = "3", Name = "Not Found"};
+        }
+    }
+   
+}

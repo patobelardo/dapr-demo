@@ -1,0 +1,141 @@
+﻿@page "/state"
+
+@using System.Text.Json
+@using v2_frontend.Data
+@using v2_frontend.Models
+@inject IHttpClientFactory clientFactory
+
+<h1>State Management</h1>
+
+<p>This component demonstrates fetching data from a state store.</p>
+
+@if (itemCount == -1)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <p>Items in ItemList is: @itemCount</p>
+
+    @foreach(var item in itemCollection)
+    {
+        if (@item.data != null)
+        {
+            <p>@item.data.Name - @item.data.Date.ToShortDateString() - (@item.key))</p>
+        }
+    }
+}
+
+<EditForm Model="@formModel" OnValidSubmit="@HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <InputText id="name" @bind-Value="formModel.Name" />
+    <InputDate id="date" @bind-Value="formModel.Date" />
+
+    <button type="submit">Submit</button>
+</EditForm>
+
+@code {
+    private FormItemModel formModel = new FormItemModel { Date = DateTime.UtcNow };
+
+    private int itemCount = -1;
+    private FormItemResults[] itemCollection = new FormItemResults[0];
+
+    private string stateUrl = $"http://localhost:3500/v1.0/state/statestore";
+
+    
+    private async Task HandleValidSubmit()
+    {
+        var client = clientFactory.CreateClient();
+
+        //Getting list of item ids
+        List<string> itemList = await getItemListAsync(client, stateUrl);
+        
+        //Add item to the list
+        var newGuid = $"item|{Guid.NewGuid()}";
+        itemList.Add(newGuid);
+
+        //Create a transaction object
+        var transaction = new {
+            operations = new object[] { 
+                new {
+                    operation = "upsert", 
+                    request = new {
+                        key = newGuid,
+                        value = formModel
+                    }
+                },
+                new {
+                    operation = "upsert",
+                    request = new {
+                                key = "itemList",
+                                value = itemList
+                            }
+                }
+            }
+        };
+        var value = new StringContent(JsonSerializer.Serialize(transaction));
+        var result = await client.PostAsync($"{stateUrl}/transaction", value);
+        if (result.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Items saved in state");
+            await _refreshItemList();
+        }
+        else
+        {
+            Console.WriteLine($"Error saving state: {result.ReasonPhrase}");
+        }
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await _refreshItemList();
+    }
+
+    private async Task _refreshItemList()
+    {
+        var client = clientFactory.CreateClient();
+
+        //Getting list of item ids
+        List<string> itemList = await getItemListAsync(client, stateUrl);
+
+        itemCount = itemList.Count();
+        Console.WriteLine($"Items in State: {itemCount}");    
+
+        //Bulk "query"
+        var query = new {
+            keys = itemList.ToArray(),
+            parallelism = 10
+        };
+        var value = new StringContent(JsonSerializer.Serialize(query));
+        var items = await client.PostAsync($"{stateUrl}/bulk", value);
+        if (items.IsSuccessStatusCode)
+        {
+            string response = await items.Content.ReadAsStringAsync();
+            itemCollection = JsonSerializer.Deserialize<FormItemResults[]>(response);
+        }
+        else
+        {
+            Console.WriteLine($"Error getting items: {items.ReasonPhrase}");
+        }
+    }
+    
+    private async Task<List<string>> getItemListAsync(HttpClient client, string stateUrl)
+    {
+        try
+        {
+            var itemListString = await client.GetStringAsync($"{stateUrl}/itemList");
+            List<string> itemList = new List<string>();
+            if (!string.IsNullOrEmpty(itemListString))
+                itemList = JsonSerializer.Deserialize<List<string>>(itemListString);
+            return itemList;
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine(ex);
+            return new List<string>();
+        }
+    }
+}

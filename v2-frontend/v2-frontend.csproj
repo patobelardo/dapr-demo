@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <RootNamespace>v2_frontend</RootNamespace>
+    <UserSecretsId>5c4d6a73-1c0f-4a54-a0ab-8ab8aa653cfd</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>.</DockerfileContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapr.AspNetCore" Version="1.0.0" />
+    <PackageReference Include="Dapr.Client" Version="1.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="5.0.4" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.13" />
+  </ItemGroup>
+
+</Project>

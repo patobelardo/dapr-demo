@@ -1,0 +1,104 @@
+﻿@page "/statesdk"
+
+@using System.Text.Json
+@using v2_frontend.Data
+@using v2_frontend.Models
+@inject IHttpClientFactory clientFactory
+@inject DaprClient _daprClient;
+
+<h1>State Management</h1>
+
+<p>This component demonstrates fetching data from a state store using Dapr SDK.</p>
+
+@if (itemCount == -1)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <p>Items in ItemList is: @itemCount</p>
+
+    @foreach(var item in itemCollection)
+    {
+        <p>@item.data.Name - @item.data.Date.ToShortDateString() - (@item.key))</p>
+    }
+}
+
+<EditForm Model="@formModel" OnValidSubmit="@HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <InputText id="name" @bind-Value="formModel.Name" />
+    <InputDate id="date" @bind-Value="formModel.Date" />
+
+    <button type="submit">Submit</button>
+</EditForm>
+
+@code {
+    private FormItemModel formModel = new FormItemModel { Date = DateTime.UtcNow };
+
+    private int itemCount = -1;
+    private FormItemResults[] itemCollection = new FormItemResults[0];
+
+
+    private async Task HandleValidSubmit()
+    {
+        //Getting list of item ids
+        List<string> itemList = await _daprClient.GetStateAsync<List<string>>("statestore", "itemList");
+        if (itemList == null)
+            itemList = new List<string>();
+
+        //Add item to the list
+        var newGuid = $"item|{Guid.NewGuid()}";
+        itemList.Add(newGuid);
+
+        //Create a transaction object
+        List<StateTransactionRequest> ops = new List<StateTransactionRequest>();
+        ops.Add(new StateTransactionRequest(newGuid, JsonSerializer.SerializeToUtf8Bytes(@formModel), StateOperationType.Upsert));
+        ops.Add(new StateTransactionRequest("itemList", JsonSerializer.SerializeToUtf8Bytes(@itemList), StateOperationType.Upsert));
+
+        await _daprClient.ExecuteStateTransactionAsync("statestore", ops);
+
+        await _refreshItemList();
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await _refreshItemList();
+    }
+
+    private async Task _refreshItemList()
+    {
+        //Getting list of item ids
+        List<string> itemList = await _daprClient.GetStateAsync<List<string>>("statestore", "itemList");
+        if (itemList == null)
+            itemList = new List<string>();
+
+        itemCount = itemList.Count();
+        
+        //Bulk "query"
+        if (itemCount > 0)
+        {
+            var itemsBulk = await _daprClient.GetBulkStateAsync("statestore", itemList.ToArray(), 1);
+            itemCollection = itemsBulk.Select(b => getItemResult(b)).ToArray();
+        }
+    }
+    
+    private async Task<List<string>> getItemListAsync(HttpClient client, string stateUrl)
+    {
+        var itemListString = await client.GetStringAsync($"{stateUrl}/itemList");
+        List<string> itemList = new List<string>();
+        if (!string.IsNullOrEmpty(itemListString))
+            itemList = JsonSerializer.Deserialize<List<string>>(itemListString);
+        return itemList;
+    }
+
+    private FormItemResults getItemResult(BulkStateItem b)
+    {
+        return new FormItemResults{ 
+                key = b.Key, 
+                data = JsonSerializer.Deserialize<FormItemModel>(b.Value) 
+            };
+    }
+}

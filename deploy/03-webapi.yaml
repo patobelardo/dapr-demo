@@ -1,0 +1,45 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: webapiapp
+  labels:
+    app: webapi
+spec:
+  selector:
+    app: webapi
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: LoadBalancer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapiapp
+  labels:
+    app: webapi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapi
+  template:
+    metadata:
+      labels:
+        app: webapi
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "webapiapp"
+        dapr.io/app-port: "80"
+        dapr.io/log-level: "debug"
+        dapr.io/config: "tracing"
+        dapr.io/log-as-json: "true"
+    spec:
+      containers:
+      - name: webapi
+        image: patobelardo/v2webapi:latest
+        ports:
+        - containerPort: 80
+        imagePullPolicy: Always

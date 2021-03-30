@@ -1,0 +1,70 @@
+﻿@page "/publisher"
+
+@using System.Text.Json
+@using Microsoft.AspNetCore.SignalR.Client
+@using v2_frontend.Data
+@using v2_frontend.Models
+@using Microsoft.Extensions.Configuration
+
+@inject IHttpClientFactory clientFactory
+@inject DaprClient _daprClient;
+@inject IConfiguration config
+
+<h1>Service Discovery</h1>
+
+<p>This component demonstrates how to publish an event using Dapr SDK.</p>
+
+<p>@message</p>
+
+<EditForm Model="@formModel" OnValidSubmit="@HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <InputText id="orderid" @bind-Value="formModel.orderId" />
+    <InputText id="productid" @bind-Value="formModel.productId" />
+    <InputNumber id="amount" @bind-Value="formModel.amount" />
+
+    <button type="submit">Submit</button>
+</EditForm>
+
+<br>
+<p>Listening Events (from pubsub):</p>
+<ul class="list-group">
+    @foreach (var message in messages)
+    {
+        <li class="list-group-item">@message</li>
+    }
+</ul>
+
+@code {
+    string message = "Please submit an item to pubsub...";
+    private OrderData formModel = new OrderData();
+    private HubConnection hubConnection;
+    private List<string> messages = new List<string>();
+    private int stepsCount = 1;
+
+  protected override async Task OnInitializedAsync()
+  {
+      Console.WriteLine($"Connecting to {config["hubConnection"]}");
+
+      hubConnection = new HubConnectionBuilder()
+          .WithUrl(config["hubConnection"].ToString())
+          .Build();
+
+      hubConnection.On<string>("Notification", (orderInfo) =>
+      {
+          messages.Add(orderInfo);
+          StateHasChanged();
+      });
+
+      await hubConnection.StartAsync();
+  }
+
+    private async Task HandleValidSubmit()
+    {
+        await _daprClient.PublishEventAsync<OrderData>("pubsub", "newOrder", formModel);
+        message = "newOrder published";
+    }
+
+
+}
